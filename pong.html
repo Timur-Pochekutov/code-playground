@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Pong Clásico</title>
+<style>
+  body {
+    margin: 0;
+    background: #0a0a0a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Courier New', monospace;
+    color: #fff;
+  }
+  h1 {
+    letter-spacing: 8px;
+    margin-bottom: 10px;
+  }
+  #info {
+    margin-bottom: 10px;
+    color: #888;
+    font-size: 14px;
+    text-align: center;
+  }
+  canvas {
+    background: #000;
+    border: 2px solid #fff;
+  }
+  #scoreboard {
+    font-size: 28px;
+    margin-bottom: 10px;
+    letter-spacing: 4px;
+  }
+  #overlay {
+    position: absolute;
+    color: #fff;
+    font-size: 40px;
+    text-align: center;
+    display: none;
+  }
+</style>
+</head>
+<body>
+  <h1>PONG</h1>
+  <div id="info">Izquierda: W / S &nbsp;&nbsp;|&nbsp;&nbsp; Derecha: ↑ / ↓ &nbsp;&nbsp;|&nbsp;&nbsp; Espacio: pausa/reinicio</div>
+  <div id="scoreboard">0&nbsp;&nbsp;-&nbsp;&nbsp;0</div>
+  <canvas id="game" width="800" height="500"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const scoreboard = document.getElementById('scoreboard');
+
+const W = canvas.width, H = canvas.height;
+const PADDLE_W = 12, PADDLE_H = 90;
+const BALL_SIZE = 12;
+const WIN_SCORE = 7;
+
+let leftY = H/2 - PADDLE_H/2;
+let rightY = H/2 - PADDLE_H/2;
+let leftScore = 0, rightScore = 0;
+let ballX = W/2, ballY = H/2;
+let ballVX = 0, ballVY = 0;
+let paused = true;
+let gameOver = false;
+
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (e.key === ' ') {
+    e.preventDefault();
+    if (gameOver) resetMatch();
+    paused = !paused;
+    if (!paused && ballVX === 0) launchBall();
+  }
+});
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+
+function launchBall() {
+  ballX = W/2; ballY = H/2;
+  const dir = Math.random() > 0.5 ? 1 : -1;
+  const angle = (Math.random() * 0.6 - 0.3);
+  ballVX = 6 * dir;
+  ballVY = 6 * angle;
+}
+
+function resetMatch() {
+  leftScore = 0; rightScore = 0;
+  gameOver = false;
+  leftY = H/2 - PADDLE_H/2;
+  rightY = H/2 - PADDLE_H/2;
+  ballVX = 0; ballVY = 0;
+  paused = true;
+  updateScoreboard();
+}
+
+function updateScoreboard() {
+  scoreboard.textContent = `${leftScore}   -   ${rightScore}`;
+}
+
+function update() {
+  if (paused || gameOver) return;
+
+  // Paddle movement
+  const speed = 7;
+  if (keys['w'] || keys['W']) leftY -= speed;
+  if (keys['s'] || keys['S']) leftY += speed;
+  if (keys['ArrowUp']) rightY -= speed;
+  if (keys['ArrowDown']) rightY += speed;
+
+  leftY = Math.max(0, Math.min(H - PADDLE_H, leftY));
+  rightY = Math.max(0, Math.min(H - PADDLE_H, rightY));
+
+  // Ball movement
+  ballX += ballVX;
+  ballY += ballVY;
+
+  // Top/bottom collision
+  if (ballY <= 0 || ballY >= H - BALL_SIZE) {
+    ballVY *= -1;
+    ballY = Math.max(0, Math.min(H - BALL_SIZE, ballY));
+  }
+
+  // Left paddle collision
+  if (ballX <= PADDLE_W + 10 && ballX + BALL_SIZE >= 10 &&
+      ballY + BALL_SIZE >= leftY && ballY <= leftY + PADDLE_H && ballVX < 0) {
+    ballVX *= -1.05;
+    const hitPos = (ballY - leftY) / PADDLE_H - 0.5;
+    ballVY += hitPos * 5;
+    ballX = PADDLE_W + 10;
+  }
+
+  // Right paddle collision
+  if (ballX + BALL_SIZE >= W - PADDLE_W - 10 && ballX <= W - 10 &&
+      ballY + BALL_SIZE >= rightY && ballY <= rightY + PADDLE_H && ballVX > 0) {
+    ballVX *= -1.05;
+    const hitPos = (ballY - rightY) / PADDLE_H - 0.5;
+    ballVY += hitPos * 5;
+    ballX = W - PADDLE_W - 10 - BALL_SIZE;
+  }
+
+  // Scoring
+  if (ballX < 0) {
+    rightScore++;
+    updateScoreboard();
+    checkWin();
+    if (!gameOver) { ballVX = 0; ballVY = 0; paused = true; ballX = W/2; ballY = H/2; }
+  } else if (ballX > W) {
+    leftScore++;
+    updateScoreboard();
+    checkWin();
+    if (!gameOver) { ballVX = 0; ballVY = 0; paused = true; ballX = W/2; ballY = H/2; }
+  }
+}
+
+function checkWin() {
+  if (leftScore >= WIN_SCORE || rightScore >= WIN_SCORE) {
+    gameOver = true;
+    paused = true;
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Center line
+  ctx.strokeStyle = '#444';
+  ctx.setLineDash([10, 10]);
+  ctx.beginPath();
+  ctx.moveTo(W/2, 0);
+  ctx.lineTo(W/2, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Paddles
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(10, leftY, PADDLE_W, PADDLE_H);
+  ctx.fillRect(W - 10 - PADDLE_W, rightY, PADDLE_W, PADDLE_H);
+
+  // Ball
+  ctx.fillRect(ballX, ballY, BALL_SIZE, BALL_SIZE);
+
+  // Messages
+  ctx.fillStyle = '#fff';
+  ctx.font = '20px Courier New';
+  ctx.textAlign = 'center';
+  if (gameOver) {
+    ctx.font = '36px Courier New';
+    ctx.fillText(leftScore > rightScore ? 'GANÓ IZQUIERDA' : 'GANÓ DERECHA', W/2, H/2 - 20);
+    ctx.font = '18px Courier New';
+    ctx.fillText('Espacio para jugar de nuevo', W/2, H/2 + 20);
+  } else if (paused) {
+    ctx.fillText('Espacio para jugar', W/2, H/2 - 20);
+  }
+}
+
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+resetMatch();
+draw();
+loop();
+</script>
+</body>
+</html>
